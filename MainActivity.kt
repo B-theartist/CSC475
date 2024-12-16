@@ -1,235 +1,132 @@
-/*
-/* Pseudocode for Contact Book App */
+package com.example.photogallery
 
-/* 1. Initialize Main Activity */
-START MainActivity
-SET app theme and layout
-NAVIGATE to ContactBookApp() composable
-
-/* 2. Define Main Composable: ContactBookApp */
-DEFINE ContactBookApp:
-INITIALIZE list of contacts (mutable state list)
-SET current screen (Home or AddContact) to "Home"
-IF current screen is "Home":
-DISPLAY HomeScreen composable with contacts and callbacks for adding and deleting contacts
-ELSE IF current screen is "AddContact":
-DISPLAY AddContactScreen composable with callbacks for saving or canceling
-
-/* 3. Define Home Screen */
-DEFINE HomeScreen(contacts, onAddContactClick, onDeleteContact):
-DISPLAY TopAppBar with title "Contact Book"
-ADD Floating Action Button for "Add Contact" action
-DISPLAY list of contacts using LazyColumn:
-FOR each contact in contacts:
-DISPLAY ContactItem composable with contact details and delete button
-
-/* 4. Define Add Contact Screen */
-DEFINE AddContactScreen(onAddContact, onNavigateBack):
-INITIALIZE name and phone input fields
-DISPLAY input fields for "Name" and "Phone Number"
-DISPLAY "Save" button:
-ON click:
-VALIDATE inputs are not blank
-CALL onAddContact with name and phone
-NAVIGATE back to HomeScreen
-
-/* 5. Define ContactItem Composable */
-DEFINE ContactItem(contact, onDeleteContact):
-DISPLAY name and phone of contact
-ADD delete button:
-ON click:
-CALL onDeleteContact with the contact
-
-/* 6. Handle Data Persistence */
-DEFINE Data Persistence Using SharedPreferences:
-SAVE contacts:
-CONVERT contact list to JSON string using Gson
-STORE JSON string in SharedPreferences
-LOAD contacts:
-RETRIEVE JSON string from SharedPreferences
-CONVERT JSON string back to contact list using Gson
-
-/* 7. Integrate Persistence in ContactBookApp */
-ON app start:
-LOAD contacts from SharedPreferences
-ON app close or update:
-SAVE contacts to SharedPreferences
-END
-
- */
-package com.example.contactbook2
-
-import android.content.Context
-import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import com.example.contactbook2.ui.theme.ContactBook2Theme
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import coil.compose.AsyncImage
+import androidx.compose.ui.window.Dialog
 
-data class Contact(val name: String, val phone: String)
-
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ContactBook2Theme {
-                ContactBookApp(applicationContext)
-            }
+            PhotoGalleryApp()
         }
     }
 }
 
-@Composable
-fun ContactBookApp(context: Context) {
-    val sharedPreferences = context.getSharedPreferences("ContactBook", Context.MODE_PRIVATE)
-    val contacts = remember { mutableStateListOf<Contact>() }
-
-    // Load saved contacts on app start
-    LaunchedEffect(Unit) {
-        val savedContactsJson = sharedPreferences.getString("contacts", "[]")
-        val savedContacts: List<Contact> = Gson().fromJson(savedContactsJson, object : TypeToken<List<Contact>>() {}.type)
-        contacts.addAll(savedContacts)
-    }
-
-    // Save contacts whenever they are updated
-    fun saveContacts() {
-        val editor = sharedPreferences.edit()
-        val contactsJson = Gson().toJson(contacts)
-        editor.putString("contacts", contactsJson)
-        editor.apply()
-    }
-
-    var currentScreen by remember { mutableStateOf("Home") }
-
-    when (currentScreen) {
-        "Home" -> HomeScreen(
-            contacts = contacts,
-            onAddContactClick = { currentScreen = "AddContact" },
-            onDeleteContact = { contact ->
-                contacts.remove(contact)
-                saveContacts()
-            }
-        )
-        "AddContact" -> AddContactScreen(
-            onAddContact = { name, phone ->
-                contacts.add(Contact(name, phone))
-                saveContacts()
-                currentScreen = "Home"
-            },
-            onNavigateBack = { currentScreen = "Home" }
-        )
-    }
-}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    contacts: List<Contact>,
-    onAddContactClick: () -> Unit,
-    onDeleteContact: (Contact) -> Unit
-) {
+fun PhotoGalleryApp() {
+    val imageUrls = remember { mutableStateListOf<String>() }
+    var expandedImageUrl by remember { mutableStateOf<String?>(null) } // State to track the expanded image URL
+
+    // Load initial set of images
+    LaunchedEffect(Unit) {
+        loadMoreImages(imageUrls)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Contact Book") }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddContactClick) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Contact")
-            }
-        }
-    ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding)) {
-            items(contacts) { contact ->
-                ContactItem(contact = contact, onDeleteContact = onDeleteContact)
-            }
-        }
-    }
-}
-
-@Composable
-fun ContactItem(contact: Contact, onDeleteContact: (Contact) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column {
-            Text(text = "Name: ${contact.name}")
-            Text(text = "Phone: ${contact.phone}")
-        }
-        IconButton(onClick = { onDeleteContact(contact) }) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete Contact"
+                title = { Text("Photo Gallery") }
             )
         }
-    }
-}
+    ) { paddingValues ->
+        Box(Modifier.fillMaxSize()) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(8.dp)
+            ) {
+                itemsIndexed(imageUrls) { index, imageUrl ->
+                    ImageCard(imageUrl) {
+                        expandedImageUrl = imageUrl // Set the expanded image URL on click
+                    }
 
-@Composable
-fun AddContactScreen(
-    onAddContact: (String, String) -> Unit,
-    onNavigateBack: () -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Add New Contact",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Name") },
-            placeholder = { Text("Enter contact name") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
-
-        OutlinedTextField(
-            value = phone,
-            onValueChange = { phone = it },
-            label = { Text("Phone Number") },
-            placeholder = { Text("Enter phone number") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
-
-        Button(
-            onClick = {
-                if (name.isNotBlank() && phone.isNotBlank()) {
-                    onAddContact(name, phone)
+                    // Load more images when the user scrolls near the end
+                    if (index == imageUrls.size - 1) {
+                        LaunchedEffect(Unit) {
+                            loadMoreImages(imageUrls)
+                        }
+                    }
                 }
-            },
-            modifier = Modifier.align(Alignment.End)
+            }
+
+            // Show expanded image in a dialog if an image URL is set
+            expandedImageUrl?.let { imageUrl ->
+                ExpandedImageDialog(imageUrl) {
+                    expandedImageUrl = null // Clear the expanded image URL when the dialog is dismissed
+                }
+            }
+        }
+    }
+}
+
+// Function to generate a random Picsum image URL
+fun generateRandomImageUrl(): String {
+    val randomSeed = System.currentTimeMillis() + (0..1000).random()
+    return "https://picsum.photos/seed/$randomSeed/200/300"
+}
+
+// Function to load more images
+fun loadMoreImages(imageUrls: MutableList<String>) {
+    repeat(10) {
+        val imageUrl = generateRandomImageUrl()
+        Log.d("PhotoGalleryApp", "Generated URL: $imageUrl")
+        imageUrls.add(imageUrl)
+    }
+}
+
+@Composable
+fun ImageCard(imageUrl: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .padding(4.dp)
+            .size(150.dp) // Fixed size for each image
+            .clickable { onClick() } // Handle image click
+    ) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = "Image",
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
+fun ExpandedImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.background
         ) {
-            Text("Save Contact")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Expanded Image",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

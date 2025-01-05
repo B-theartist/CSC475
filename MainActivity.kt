@@ -1,132 +1,227 @@
-package com.example.photogallery
+package com.example.unitconverter
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import androidx.compose.ui.window.Dialog
 
-@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            PhotoGalleryApp()
+            UnitConverterApp()
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PhotoGalleryApp() {
-    val imageUrls = remember { mutableStateListOf<String>() }
-    var expandedImageUrl by remember { mutableStateOf<String?>(null) } // State to track the expanded image URL
-
-    // Load initial set of images
-    LaunchedEffect(Unit) {
-        loadMoreImages(imageUrls)
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Photo Gallery") }
-            )
-        }
-    ) { paddingValues ->
-        Box(Modifier.fillMaxSize()) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(8.dp)
-            ) {
-                itemsIndexed(imageUrls) { index, imageUrl ->
-                    ImageCard(imageUrl) {
-                        expandedImageUrl = imageUrl // Set the expanded image URL on click
-                    }
-
-                    // Load more images when the user scrolls near the end
-                    if (index == imageUrls.size - 1) {
-                        LaunchedEffect(Unit) {
-                            loadMoreImages(imageUrls)
-                        }
-                    }
-                }
-            }
-
-            // Show expanded image in a dialog if an image URL is set
-            expandedImageUrl?.let { imageUrl ->
-                ExpandedImageDialog(imageUrl) {
-                    expandedImageUrl = null // Clear the expanded image URL when the dialog is dismissed
-                }
-            }
-        }
-    }
-}
-
-// Function to generate a random Picsum image URL
-fun generateRandomImageUrl(): String {
-    val randomSeed = System.currentTimeMillis() + (0..1000).random()
-    return "https://picsum.photos/seed/$randomSeed/200/300"
-}
-
-// Function to load more images
-fun loadMoreImages(imageUrls: MutableList<String>) {
-    repeat(10) {
-        val imageUrl = generateRandomImageUrl()
-        Log.d("PhotoGalleryApp", "Generated URL: $imageUrl")
-        imageUrls.add(imageUrl)
     }
 }
 
 @Composable
-fun ImageCard(imageUrl: String, onClick: () -> Unit) {
-    Card(
+fun UnitConverterApp() {
+    MaterialTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            UnitConverterScreen()
+        }
+    }
+}
+
+@Composable
+fun UnitConverterScreen() {
+    var input by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Temperature") }
+    var selectedFromUnit by remember { mutableStateOf("Celsius") }
+    var selectedToUnit by remember { mutableStateOf("Fahrenheit") }
+
+    // Units for each category
+    val categories = listOf("Temperature", "Length", "Weight")
+    val units = mapOf(
+        "Temperature" to listOf("Celsius", "Fahrenheit", "Kelvin"),
+        "Length" to listOf("Meters", "Yards", "Miles", "Feet", "Inches"),
+        "Weight" to listOf("Kilograms", "Pounds", "Grams", "Ounces")
+    )
+
+    Column(
         modifier = Modifier
-            .padding(4.dp)
-            .size(150.dp) // Fixed size for each image
-            .clickable { onClick() } // Handle image click
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = "Image",
-            modifier = Modifier.fillMaxSize()
+        // Top dropdown: Select category
+        DropdownMenuField(
+            label = "Select Category",
+            options = categories,
+            selectedOption = selectedCategory,
+            onOptionSelected = {
+                selectedCategory = it
+                selectedFromUnit = units[it]?.first() ?: ""
+                selectedToUnit = units[it]?.getOrNull(1) ?: ""
+                input = ""
+                result = ""
+            }
         )
-    }
-}
 
-@Composable
-fun ExpandedImageDialog(imageUrl: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.background
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Dropdown to select "From" unit
+        DropdownMenuField(
+            label = "Convert From",
+            options = units[selectedCategory] ?: emptyList(),
+            selectedOption = selectedFromUnit,
+            onOptionSelected = {
+                selectedFromUnit = it
+                result = performConversion(input, selectedCategory, selectedFromUnit, selectedToUnit)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Dropdown to select "To" unit
+        DropdownMenuField(
+            label = "Convert To",
+            options = units[selectedCategory] ?: emptyList(),
+            selectedOption = selectedToUnit,
+            onOptionSelected = {
+                selectedToUnit = it
+                result = performConversion(input, selectedCategory, selectedFromUnit, selectedToUnit)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Input and converted value fields
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start
             ) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Expanded Image",
+                Text(text = "Value (${selectedFromUnit})")
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it
+                        result = performConversion(input, selectedCategory, selectedFromUnit, selectedToUnit)
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(text = "Converted (${selectedToUnit})")
+                OutlinedTextField(
+                    value = result,
+                    onValueChange = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true
+                )
+            }
         }
+    }
+}
+
+@Composable
+fun DropdownMenuField(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = if (selectedOption.isEmpty()) label else selectedOption)
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+fun performConversion(input: String, category: String, fromUnit: String, toUnit: String): String {
+    // Handle invalid or empty input
+    if (input.isEmpty() || fromUnit.isEmpty() || toUnit.isEmpty()) return "Invalid Input"
+    if (fromUnit == toUnit) return String.format("%.5f", input.toDouble())
+
+    return try {
+        val value = input.toDouble()
+        val result = when (category) {
+            "Temperature" -> when (fromUnit to toUnit) {
+                "Celsius" to "Fahrenheit" -> (value * 9 / 5 + 32)
+                "Fahrenheit" to "Celsius" -> ((value - 32) * 5 / 9)
+                "Celsius" to "Kelvin" -> (value + 273.15)
+                "Kelvin" to "Celsius" -> (value - 273.15)
+                "Kelvin" to "Fahrenheit" -> ((value - 273.15) * 9 / 5 + 32)
+                "Fahrenheit" to "Kelvin" -> ((value - 32) * 5 / 9 + 273.15)
+                else -> return "Invalid Conversion"
+            }
+            "Length" -> when (fromUnit to toUnit) {
+                "Meters" to "Yards" -> (value * 1.09361)
+                "Yards" to "Meters" -> (value / 1.09361)
+                "Miles" to "Kilometers" -> (value * 1.60934)
+                "Kilometers" to "Miles" -> (value / 1.60934)
+                "Feet" to "Inches" -> (value * 12)
+                "Inches" to "Feet" -> (value / 12)
+                "Meters" to "Feet" -> (value * 3.28084)
+                "Feet" to "Meters" -> (value / 3.28084)
+                "Feet" to "Yards" -> (value / 3)
+                "Yards" to "Feet" -> (value * 3)
+                "Miles" to "Yards" -> (value * 1760)
+                "Yards" to "Miles" -> (value / 1760)
+                "Kilometers" to "Yards" -> (value * 1093.61)
+                "Yards" to "Kilometers" -> (value / 1093.61)
+                else -> return "Invalid Conversion"
+            }
+            "Weight" -> when (fromUnit to toUnit) {
+                "Kilograms" to "Pounds" -> (value * 2.20462)
+                "Pounds" to "Kilograms" -> (value / 2.20462)
+                "Grams" to "Ounces" -> (value / 28.3495) // Updated formula for Grams to Ounces
+                "Ounces" to "Grams" -> (value * 28.3495)
+                "Kilograms" to "Grams" -> (value * 1000)
+                "Grams" to "Kilograms" -> (value / 1000)
+                "Pounds" to "Ounces" -> (value * 16)
+                "Ounces" to "Pounds" -> (value / 16)
+                "Grams" to "Pounds" -> (value / 453.592)
+                "Pounds" to "Grams" -> (value * 453.592)
+                "Kilograms" to "Ounces" -> (value * 35.274)
+                "Ounces" to "Kilograms" -> (value / 35.274)
+                "Kilograms" to "Milligrams" -> (value * 1_000_000)
+                "Milligrams" to "Kilograms" -> (value / 1_000_000)
+                "Pounds" to "Milligrams" -> (value * 453_592)
+                "Milligrams" to "Pounds" -> (value / 453_592)
+                else -> return "Invalid Conversion"
+            }
+            else -> return "Invalid Conversion"
+        }
+        String.format("%.5f", result) // Round to 5 decimal places
+    } catch (e: Exception) {
+        "Invalid Input"
     }
 }
